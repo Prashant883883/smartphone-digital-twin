@@ -32,7 +32,10 @@
         <p class="eyebrow">CONTROL CENTRE</p>
         <h2>Connect your device</h2>
         <p class="muted">Open this page on your smartphone, then allow motion or orientation access when prompted.</p>
-        <button id="startButton" class="primary-button">Enable smartphone sensors</button>
+        <div class="sensor-actions">
+          <button id="startButton" class="primary-button">Enable smartphone sensors</button>
+          <button id="stopButton" class="danger-button" hidden>Disable smartphone sensors</button>
+        </div>
         <button id="calibrateButton" class="secondary-button" disabled>Calibrate reference position</button>
         <div class="calibration-state"><span>Calibration</span><strong id="calibrationText">Not set</strong></div>
         <p class="small-note">Tip: Place your phone flat and still before calibrating.</p>

@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
 const $ = (id) => document.getElementById(id);
 const startButton = $('startButton');
+const stopButton = $('stopButton');
 const calibrateButton = $('calibrateButton');
 const host = $('twinCanvas');
 
@@ -177,8 +178,10 @@ async function startSensors() {
     window.addEventListener('deviceorientation', onOrientation, { capture: true, passive: true });
     window.addEventListener('devicemotion', onMotion, { capture: true, passive: true });
     sensorStarted = true;
-    startButton.textContent = 'Sensors enabled';
-    $('statusText').textContent = 'Waiting for sensor readings';
+    startButton.hidden = true;
+    stopButton.hidden = false;
+    $('statusDot').classList.add('connected');
+    $('statusText').textContent = 'Sensors enabled — waiting for readings';
     $('orientationSummary').textContent = 'Waiting for orientation data';
   } catch (error) {
     $('statusDot').classList.remove('connected');
@@ -188,7 +191,32 @@ async function startSensors() {
   }
 }
 
+function stopSensors() {
+  if (!sensorStarted) return;
+  window.removeEventListener('deviceorientation', onOrientation, true);
+  window.removeEventListener('devicemotion', onMotion, true);
+  sensorStarted = false;
+  hasOrientation = false;
+  referenceQuaternion = null;
+  latestOrientation = { alpha: 0, beta: 0, gamma: 0 };
+  targetQuaternion.identity();
+  displayQuaternion.identity();
+
+  // Clear displayed values so the user can see that this page is no longer reading events.
+  ['accX', 'accY', 'accZ', 'alpha', 'beta', 'gamma'].forEach((id) => { $(id).textContent = '—'; });
+  $('orientationSummary').textContent = 'Sensors are disabled';
+  $('calibrationText').textContent = 'Not set';
+  $('statusDot').classList.remove('connected');
+  $('statusText').textContent = 'Sensors disabled';
+  calibrateButton.disabled = true;
+  stopButton.hidden = true;
+  startButton.hidden = false;
+  startButton.disabled = false;
+  startButton.textContent = 'Enable smartphone sensors';
+}
+
 startButton.addEventListener('click', startSensors);
+stopButton.addEventListener('click', stopSensors);
 calibrateButton.addEventListener('click', () => {
   if (!hasOrientation) return;
   referenceQuaternion = orientationToQuaternion(
