@@ -3,95 +3,134 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 const $ = (id) => document.getElementById(id);
 const startButton = $('startButton');
 const calibrateButton = $('calibrateButton');
-let latestOrientation = { alpha: 0, beta: 0, gamma: 0 };
-let reference = null;
-let sensorStarted = false;
-
-// Three.js scene: a simple 3D object represents the physical device's digital twin.
 const host = $('twinCanvas');
+
+let sensorStarted = false;
+let hasOrientation = false;
+let latestOrientation = { alpha: 0, beta: 0, gamma: 0 };
+let referenceQuaternion = null;
+let targetQuaternion = new THREE.Quaternion();
+let displayQuaternion = new THREE.Quaternion();
+let lastHostSize = { width: 0, height: 0 };
+
+// Scene and camera. The camera must explicitly face the model.
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-camera.position.set(4.2, 3.1, 5.4);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.shadowMap.enabled = true;
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+camera.position.set(3.6, 3.0, 4.8);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x000000, 0);
 host.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff, 1.8));
-const keyLight = new THREE.DirectionalLight(0x9bc7ff, 3.2);
+scene.add(new THREE.HemisphereLight(0xdceaff, 0x25334b, 2.0));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
 keyLight.position.set(3, 5, 4);
 scene.add(keyLight);
-const rimLight = new THREE.PointLight(0x35d5b0, 18, 12);
+const rimLight = new THREE.PointLight(0x35d5b0, 12, 12);
 rimLight.position.set(-3, 1, -2);
 scene.add(rimLight);
 
 const twin = new THREE.Group();
 scene.add(twin);
+
+// Phone body: its long dimension is along local Z.
 const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1.7, 0.18, 2.8),
-  new THREE.MeshStandardMaterial({ color: 0x438fe8, metalness: 0.55, roughness: 0.28 })
+  new THREE.BoxGeometry(1.55, 0.14, 2.75),
+  new THREE.MeshStandardMaterial({ color: 0x438fe8, metalness: 0.45, roughness: 0.3 })
 );
-body.castShadow = true;
 twin.add(body);
 const screen = new THREE.Mesh(
-  new THREE.BoxGeometry(1.48, 0.025, 2.48),
-  new THREE.MeshStandardMaterial({ color: 0x142943, metalness: 0.25, roughness: 0.35, emissive: 0x102d50 })
+  new THREE.BoxGeometry(1.42, 0.018, 2.58),
+  new THREE.MeshStandardMaterial({ color: 0x10243d, metalness: 0.18, roughness: 0.28, emissive: 0x102d50 })
 );
-screen.position.y = 0.105;
+screen.position.y = 0.079;
 twin.add(screen);
-const cameraDot = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.035, 24), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+const cameraDot = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.065, 0.065, 0.025, 24),
+  new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.2, roughness: 0.35 })
+);
 cameraDot.rotation.x = Math.PI / 2;
-cameraDot.position.set(0, 0.13, -1.12);
+cameraDot.position.set(0, 0.095, -1.18);
 twin.add(cameraDot);
-const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.72, 0.2, 2.82)), new THREE.LineBasicMaterial({ color: 0x9ccaff, transparent: true, opacity: 0.75 }));
+const edges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.58, 0.16, 2.78)),
+  new THREE.LineBasicMaterial({ color: 0xa8d0ff, transparent: true, opacity: 0.8 })
+);
 twin.add(edges);
 
-function resize() {
-  const width = Math.max(host.clientWidth, 1);
-  const height = Math.max(host.clientHeight, 1);
+// A subtle floor grid makes the phone's rotation easier to understand.
+const grid = new THREE.GridHelper(5, 10, 0x355579, 0x20334c);
+grid.position.y = -1.05;
+scene.add(grid);
+
+function resizeRenderer() {
+  const width = Math.max(1, Math.floor(host.clientWidth));
+  const height = Math.max(1, Math.floor(host.clientHeight));
+  if (width === lastHostSize.width && height === lastHostSize.height) return;
+  lastHostSize = { width, height };
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height, false);
 }
-new ResizeObserver(resize).observe(host);
-resize();
 
-function render() {
-  requestAnimationFrame(render);
-  renderer.render(scene, camera);
+if ('ResizeObserver' in window) {
+  const observer = new ResizeObserver(resizeRenderer);
+  observer.observe(host);
+} else {
+  window.addEventListener('resize', resizeRenderer, { passive: true });
 }
-render();
+resizeRenderer();
 
 function displayNumber(value) {
   return Number.isFinite(value) ? value.toFixed(2) : '—';
 }
 
-function updateTwin() {
-  const { alpha, beta, gamma } = latestOrientation;
-  const offset = reference || { alpha: 0, beta: 0, gamma: 0 };
-  const toRad = Math.PI / 180;
-  // DeviceOrientation angles are mapped to the 3D model as a visual representation.
-  twin.rotation.set(
-    (beta - offset.beta) * toRad,
-    (alpha - offset.alpha) * toRad,
-    -(gamma - offset.gamma) * toRad,
-    'YXZ'
+function setConnected(message = 'Receiving sensor events') {
+  $('statusDot').classList.add('connected');
+  $('statusText').textContent = message;
+  calibrateButton.disabled = !hasOrientation;
+}
+
+function orientationToQuaternion(alpha, beta, gamma) {
+  // Convert degrees from DeviceOrientationEvent into a 3D orientation.
+  // Screen rotation is compensated so portrait/landscape changes are handled.
+  const rad = Math.PI / 180;
+  const euler = new THREE.Euler(beta * rad, alpha * rad, -gamma * rad, 'YXZ');
+  const q = new THREE.Quaternion().setFromEuler(euler);
+  const screenAngle = (screen.orientation && Number.isFinite(screen.orientation.angle))
+    ? screen.orientation.angle
+    : (Number.isFinite(window.orientation) ? window.orientation : 0);
+  const screenCorrection = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 0, 1), -screenAngle * rad
   );
-  $('orientationSummary').textContent = `α ${displayNumber(alpha)}° · β ${displayNumber(beta)}° · γ ${displayNumber(gamma)}°`;
+  return q.multiply(screenCorrection).normalize();
+}
+
+function updateRelativeTarget() {
+  const current = orientationToQuaternion(
+    latestOrientation.alpha,
+    latestOrientation.beta,
+    latestOrientation.gamma
+  );
+  if (referenceQuaternion) {
+    targetQuaternion.copy(referenceQuaternion).invert().multiply(current).normalize();
+  } else {
+    targetQuaternion.copy(current);
+  }
 }
 
 function onOrientation(event) {
-  if (event.alpha == null && event.beta == null && event.gamma == null) return;
-  latestOrientation = {
-    alpha: event.alpha ?? 0,
-    beta: event.beta ?? 0,
-    gamma: event.gamma ?? 0
-  };
+  if (event.alpha == null || event.beta == null || event.gamma == null) return;
+  latestOrientation = { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
+  hasOrientation = true;
   $('alpha').textContent = displayNumber(event.alpha);
   $('beta').textContent = displayNumber(event.beta);
   $('gamma').textContent = displayNumber(event.gamma);
-  updateTwin();
+  $('orientationSummary').textContent = `α ${displayNumber(event.alpha)}° · β ${displayNumber(event.beta)}° · γ ${displayNumber(event.gamma)}°`;
+  updateRelativeTarget();
   setConnected();
 }
 
@@ -101,48 +140,68 @@ function onMotion(event) {
     $('accX').textContent = displayNumber(acceleration.x);
     $('accY').textContent = displayNumber(acceleration.y);
     $('accZ').textContent = displayNumber(acceleration.z);
+    setConnected('Receiving motion data');
   }
-  if (event.rotationRate) {
-    // Rotation-rate values are available in degrees per second on supporting browsers.
-    // Orientation values above are used for the 3D model.
-  }
-  setConnected();
 }
 
-function setConnected() {
-  $('statusDot').classList.add('connected');
-  $('statusText').textContent = 'Receiving sensor events';
-  calibrateButton.disabled = false;
+function animate() {
+  requestAnimationFrame(animate);
+  // Smooth only the 3D display. Raw sensor numbers remain visible for the experiment.
+  displayQuaternion.slerp(targetQuaternion, 0.12);
+  twin.quaternion.copy(displayQuaternion);
+  renderer.render(scene, camera);
+}
+animate();
+
+async function requestSensorPermission(EventType) {
+  if (typeof EventType !== 'undefined' && typeof EventType.requestPermission === 'function') {
+    return EventType.requestPermission();
+  }
+  return 'granted';
 }
 
 async function startSensors() {
   if (sensorStarted) return;
+  startButton.disabled = true;
+  startButton.textContent = 'Requesting permission…';
   try {
-    // iOS Safari requires explicit permission from a user gesture.
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      const permission = await DeviceOrientationEvent.requestPermission();
-      if (permission !== 'granted') throw new Error('Motion/orientation permission was not granted.');
-    }
+    // iOS Safari may expose separate permission methods for orientation and motion.
+    const orientationPermission = await requestSensorPermission(window.DeviceOrientationEvent);
+    if (orientationPermission !== 'granted') throw new Error('Orientation permission was not granted.');
+    const motionPermission = await requestSensorPermission(window.DeviceMotionEvent);
+    if (motionPermission !== 'granted') throw new Error('Motion permission was not granted.');
+
     if (!('DeviceOrientationEvent' in window) && !('DeviceMotionEvent' in window)) {
       throw new Error('This browser does not expose motion or orientation sensor events.');
     }
-    window.addEventListener('deviceorientation', onOrientation, true);
-    window.addEventListener('devicemotion', onMotion, true);
+    window.addEventListener('deviceorientation', onOrientation, { capture: true, passive: true });
+    window.addEventListener('devicemotion', onMotion, { capture: true, passive: true });
     sensorStarted = true;
     startButton.textContent = 'Sensors enabled';
-    startButton.disabled = true;
     $('statusText').textContent = 'Waiting for sensor readings';
+    $('orientationSummary').textContent = 'Waiting for orientation data';
   } catch (error) {
-    $('statusText').textContent = error.message || 'Could not access sensors';
     $('statusDot').classList.remove('connected');
+    $('statusText').textContent = error.message || 'Could not access sensors';
+    startButton.disabled = false;
+    startButton.textContent = 'Try sensor permission again';
   }
 }
 
 startButton.addEventListener('click', startSensors);
 calibrateButton.addEventListener('click', () => {
-  reference = { ...latestOrientation };
+  if (!hasOrientation) return;
+  referenceQuaternion = orientationToQuaternion(
+    latestOrientation.alpha,
+    latestOrientation.beta,
+    latestOrientation.gamma
+  );
+  targetQuaternion.identity();
   $('calibrationText').textContent = 'Reference saved';
-  updateTwin();
+  $('orientationSummary').textContent = 'Relative to calibrated position';
 });
 
-window.addEventListener('orientationchange', resize);
+window.addEventListener('orientationchange', () => {
+  // Recalculate dimensions after the browser finishes its orientation transition.
+  requestAnimationFrame(resizeRenderer);
+}, { passive: true });
