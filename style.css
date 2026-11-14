@@ -9,3 +9,46 @@ body { overflow-x: hidden; overflow-anchor: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+
+
+/* Keep the live orientation caption from changing the card height on phones.
+   The label and values always occupy two fixed rows on narrow screens. */
+.model-caption {
+  align-items: center;
+  min-height: 2.2rem;
+  flex-wrap: nowrap;
+}
+.model-caption span {
+  flex: 0 0 auto;
+}
+.model-caption strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .model-caption {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    justify-content: start;
+    gap: 4px;
+    min-height: 3.15rem;
+  }
+  .model-caption span {
+    white-space: nowrap;
+  }
+  .model-caption strong {
+    text-align: left;
+    font-size: clamp(.72rem, 3.2vw, .84rem);
+    line-height: 1.35;
+  }
+}
+
+
+/* Explicit sensor on/off controls. */
+.sensor-actions { display: grid; gap: 10px; }
+.danger-button { border: 1px solid #7f3440; border-radius: 11px; padding: 13px 15px; font-weight: 750; font-size: .88rem; cursor: pointer; background: #49212b; color: #ffdce1; }
+.danger-button:hover { background: #5b2733; }
+[hidden] { display: none !important; }
