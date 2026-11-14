@@ -9,6 +9,11 @@ const host = $('twinCanvas');
 let sensorStarted = false;
 let hasOrientation = false;
 let latestOrientation = { alpha: 0, beta: 0, gamma: 0 };
+// Filtered values are used only for the numerical display.
+let filteredOrientation = null;
+
+const DISPLAY_DEADBAND = 0.1; 
+const DISPLAY_SMOOTHING = 0.2;
 let referenceQuaternion = null;
 let targetQuaternion = new THREE.Quaternion();
 let displayQuaternion = new THREE.Quaternion();
@@ -88,6 +93,52 @@ resizeRenderer();
 function displayNumber(value) {
   return Number.isFinite(value) ? value.toFixed(2) : '—';
 }
+function normalizeAngle(angle) {
+  return ((angle % 360) + 360) % 360;
+}
+
+function shortestAngleDifference(target, current) {
+  return ((target - current + 540) % 360) - 180;
+}
+
+function updateFilteredOrientation(raw) {
+  if (!filteredOrientation) {
+    filteredOrientation = { ...raw };
+    return filteredOrientation;
+  }
+
+  // Alpha is circular: 359° and 0° are close together.
+  const alphaDifference = shortestAngleDifference(
+    raw.alpha,
+    filteredOrientation.alpha
+  );
+
+  if (Math.abs(alphaDifference) >= DISPLAY_DEADBAND) {
+    filteredOrientation.alpha = normalizeAngle(
+      filteredOrientation.alpha +
+      alphaDifference * DISPLAY_SMOOTHING
+    );
+  }
+
+  // Beta and Gamma use ordinary numerical differences.
+  ['beta', 'gamma'].forEach((axis) => {
+    const difference = raw[axis] - filteredOrientation[axis];
+
+    if (Math.abs(difference) >= DISPLAY_DEADBAND) {
+      filteredOrientation[axis] += difference * DISPLAY_SMOOTHING;
+    }
+  });
+
+  return filteredOrientation;
+}
+
+function displayOrientationNumber(value) {
+  return Number.isFinite(value) ? value.toFixed(1) : '—';
+}
+
+
+
+
 
 function setConnected(message = 'Receiving sensor events') {
   $('statusDot').classList.add('connected');
@@ -125,13 +176,31 @@ function updateRelativeTarget() {
 
 function onOrientation(event) {
   if (event.alpha == null || event.beta == null || event.gamma == null) return;
-  latestOrientation = { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
+
+  // Preserve original sensor readings for the Digital Twin.
+  latestOrientation = {
+    alpha: event.alpha,
+    beta: event.beta,
+    gamma: event.gamma
+  };
+
   hasOrientation = true;
-  $('alpha').textContent = displayNumber(event.alpha);
-  $('beta').textContent = displayNumber(event.beta);
-  $('gamma').textContent = displayNumber(event.gamma);
-  $('orientationSummary').textContent = `α ${displayNumber(event.alpha)}° · β ${displayNumber(event.beta)}° · γ ${displayNumber(event.gamma)}°`;
+
+  // Filter only the numerical display.
+  const displayed = updateFilteredOrientation(latestOrientation);
+
+  $('alpha').textContent = displayOrientationNumber(displayed.alpha);
+  $('beta').textContent = displayOrientationNumber(displayed.beta);
+  $('gamma').textContent = displayOrientationNumber(displayed.gamma);
+
+  $('orientationSummary').textContent =
+    `α ${displayOrientationNumber(displayed.alpha)}° · ` +
+    `β ${displayOrientationNumber(displayed.beta)}° · ` +
+    `γ ${displayOrientationNumber(displayed.gamma)}°`;
+
+  // The 3D model continues receiving the original readings.
   updateRelativeTarget();
+
   setConnected();
 }
 
@@ -199,6 +268,7 @@ function stopSensors() {
   hasOrientation = false;
   referenceQuaternion = null;
   latestOrientation = { alpha: 0, beta: 0, gamma: 0 };
+  filteredOrientation = null;
   targetQuaternion.identity();
   displayQuaternion.identity();
 
