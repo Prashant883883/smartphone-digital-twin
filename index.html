@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Smartphone Digital Twin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LIVE SENSOR EXPERIMENT</p>
+        <h1>Smartphone <span>Digital Twin</span></h1>
+        <p class="subtitle">Move your phone and watch its digital model respond.</p>
+      </div>
+      <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Not connected</span></div>
+    </header>
+
+    <section class="hero-grid">
+      <article class="panel twin-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">PHYSICAL → DIGITAL</p><h2>Live 3D model</h2></div>
+          <span class="live-tag">● LIVE VIEW</span>
+        </div>
+        <div id="twinCanvas" class="twin-canvas" aria-label="3D model responding to phone orientation"></div>
+        <div class="model-caption"><span>Digital Twin orientation</span><strong id="orientationSummary">Waiting for sensor data</strong></div>
+      </article>
+
+      <article class="panel controls-panel">
+        <p class="eyebrow">CONTROL CENTRE</p>
+        <h2>Connect your device</h2>
+        <p class="muted">Open this page on your smartphone, then allow motion or orientation access when prompted.</p>
+        <button id="startButton" class="primary-button">Enable smartphone sensors</button>
+        <button id="calibrateButton" class="secondary-button" disabled>Calibrate reference position</button>
+        <div class="calibration-state"><span>Calibration</span><strong id="calibrationText">Not set</strong></div>
+        <p class="small-note">Tip: Place your phone flat and still before calibrating.</p>
+      </article>
+    </section>
+
+    <section class="readings-grid">
+      <article class="panel readings-panel">
+        <div class="panel-heading"><div><p class="eyebrow">DEVICE MOTION</p><h2>Acceleration</h2></div><span class="unit">m/s²</span></div>
+        <div class="metric-grid">
+          <div class="metric"><span>X axis</span><strong id="accX">—</strong></div>
+          <div class="metric"><span>Y axis</span><strong id="accY">—</strong></div>
+          <div class="metric"><span>Z axis</span><strong id="accZ">—</strong></div>
+        </div>
+      </article>
+      <article class="panel readings-panel">
+        <div class="panel-heading"><div><p class="eyebrow">DEVICE ORIENTATION</p><h2>Rotation</h2></div><span class="unit">degrees</span></div>
+        <div class="metric-grid">
+          <div class="metric"><span>Alpha</span><strong id="alpha">—</strong></div>
+          <div class="metric"><span>Beta</span><strong id="beta">—</strong></div>
+          <div class="metric"><span>Gamma</span><strong id="gamma">—</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel explanation-panel">
+      <p class="eyebrow">DATA PIPELINE</p>
+      <h2>How the Digital Twin works</h2>
+      <div class="pipeline">
+        <div class="pipeline-step"><span>01</span><strong>Physical phone</strong><small>You move the device</small></div>
+        <b class="arrow">→</b>
+        <div class="pipeline-step"><span>02</span><strong>Motion sensors</strong><small>Measure movement</small></div>
+        <b class="arrow">→</b>
+        <div class="pipeline-step"><span>03</span><strong>Browser</strong><small>Reads sensor events</small></div>
+        <b class="arrow">→</b>
+        <div class="pipeline-step"><span>04</span><strong>Digital Twin</strong><small>Updates the 3D model</small></div>
+      </div>
+      <p class="footer-note">Demo note: orientation is obtained from the device orientation API. Acceleration is displayed when the browser provides motion data. Browser sensor readings are device-dependent.</p>
+    </section>
+    <footer>Student demonstration · Smartphone sensor data and Digital Twins</footer>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
